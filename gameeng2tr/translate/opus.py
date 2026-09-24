@@ -69,6 +69,7 @@ class OpusTranslator(Translator):
             inter_threads=1,
             intra_threads=self.threads if device == "cpu" else 0,
         )
+        self.note = "CPU" if device == "cpu" else "GPU"
         log.info("Opus-MT yüklendi (%s, %s)", device, compute_type)
 
     def unload(self) -> None:

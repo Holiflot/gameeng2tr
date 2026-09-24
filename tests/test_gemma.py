@@ -12,6 +12,7 @@ class FakeOllama(BaseHTTPRequestHandler):
     requests = []
     models = ["translategemma:4b"]
     reply = "Buraya geri dönmemeliydin, Foundling."
+    vram_share = 1.0
 
     def log_message(self, *args):
         pass
@@ -28,6 +29,10 @@ class FakeOllama(BaseHTTPRequestHandler):
         FakeOllama.requests.append(("GET", self.path, None))
         if self.path == "/api/version":
             self._send({"version": "0.12.0"})
+        elif self.path == "/api/ps":
+            size = 3_500_000_000
+            self._send({"models": [{"name": "translategemma:4b", "model": "translategemma:4b",
+                                    "size": size, "size_vram": int(size * FakeOllama.vram_share)}]})
         elif self.path == "/api/tags":
             self._send({"models": [{"name": m, "model": m} for m in FakeOllama.models]})
         else:
@@ -48,6 +53,7 @@ class FakeOllama(BaseHTTPRequestHandler):
 def ollama():
     FakeOllama.requests = []
     FakeOllama.models = ["translategemma:4b"]
+    FakeOllama.vram_share = 1.0
     server = HTTPServer(("127.0.0.1", 0), FakeOllama)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -80,6 +86,8 @@ def test_translate_via_ollama(ollama):
     assert last["stream"] is False
     assert last["options"]["temperature"] == 0.0
     assert last["options"]["num_gpu"] == 0
+    assert last["options"]["num_thread"] == 4
+    assert last["options"]["num_ctx"] == 512
     assert last["messages"][0]["content"].endswith("Foundling.")
     g.unload()
     unload = [p for m, path, p in FakeOllama.requests if path == "/api/generate"][-1]
@@ -99,3 +107,22 @@ def test_no_server_gives_install_hint(monkeypatch):
     g = GemmaTranslator(base_url="http://127.0.0.1:9", timeout=1)
     with pytest.raises(TranslatorError, match="Ollama"):
         g.load()
+
+
+@pytest.mark.parametrize(
+    "share, cpu_only, expected",
+    [
+        (1.0, False, "GPU"),
+        (0.0, True, "CPU"),
+        (0.0, False, "CPU: GPU kullanılamadı"),
+        (0.6, False, "GPU %60 + CPU"),
+    ],
+)
+def test_placement_note(ollama, share, cpu_only, expected):
+    FakeOllama.vram_share = share
+    g = GemmaTranslator(base_url=ollama, cpu_only=cpu_only)
+    g.load()
+    assert g.note.startswith(expected)
+    if not cpu_only:
+        chat = [p for m, path, p in FakeOllama.requests if path == "/api/chat"][-1]
+        assert "num_gpu" not in chat["options"] and "num_thread" not in chat["options"]

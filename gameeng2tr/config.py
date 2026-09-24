@@ -40,6 +40,7 @@ class Settings:
     gemma_cpu_only: bool = False
     gemma_keep_loaded: bool = False  # Opus'a geçince VRAM'de tut
     gemma_timeout: float = 30.0
+    gemma_threads: int = 4  # sadece CPU modunda; oyuna çekirdek bırakmak için
 
     # OCR ve yakalama
     ocr_backend: str = "auto"

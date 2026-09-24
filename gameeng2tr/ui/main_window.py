@@ -117,7 +117,7 @@ class MainWindow(QMainWindow):
         self.engine_state_labels: dict[str, QLabel] = {}
         descriptions = {
             ENGINE_OPUS: "Çok hızlı (~0,1 sn), işlemcide çalışır, oyunun FPS'ini etkilemez.",
-            ENGINE_GEMMA: "Daha doğal Türkçe, Ollama üzerinden. GPU'da ~3,3 GB VRAM kullanır.",
+            ENGINE_GEMMA: "Daha doğal Türkçe, Ollama üzerinden. GPU'da ~3,5 GB VRAM kullanır (AMD kartlarda Vulkan ile).",
         }
         for name in (ENGINE_OPUS, ENGINE_GEMMA):
             radio = QRadioButton(ENGINE_LABELS[name])
@@ -391,7 +391,13 @@ class MainWindow(QMainWindow):
 
     def _on_engine_state(self, name: str, state: str, message: str) -> None:
         label = self.engine_state_labels[name]
-        label.setText(STATE_TEXT.get(state, state))
+        text = STATE_TEXT.get(state, state)
+        if state == "ready" and message:
+            text = f"{text} • {message}"
+            if message.startswith("CPU:") or "+ CPU" in message:
+                state = "loading"  # turuncu: çalışıyor ama beklenenden yavaş
+        label.setText(text)
+        label.setToolTip(message)
         color = {"ready": "#2e7d32", "loading": "#ef6c00", "error": "#d32f2f"}.get(state, "gray")
         label.setStyleSheet(f"color: {color}; font-weight: bold;")
         if name == self.s.engine:

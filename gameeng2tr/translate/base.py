@@ -10,6 +10,7 @@ class TranslatorError(RuntimeError):
 class Translator(ABC):
     name = "translator"
     label = "Çevirmen"
+    note = ""  # yüklendikten sonra arayüzde gösterilecek kısa bilgi (ör. "GPU")
 
     @abstractmethod
     def load(self) -> None:

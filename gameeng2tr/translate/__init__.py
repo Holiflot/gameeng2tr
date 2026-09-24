@@ -34,6 +34,7 @@ def make_factories(settings: Settings) -> dict[str, Callable[[], Translator]]:
             model=settings.gemma_model,
             cpu_only=settings.gemma_cpu_only,
             timeout=settings.gemma_timeout,
+            threads=settings.gemma_threads,
         )
 
     return {ENGINE_OPUS: opus, ENGINE_GEMMA: gemma}

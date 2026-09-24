@@ -222,7 +222,8 @@ class Controller(QObject):
         if state == STATE_LOADING:
             self.toast.show_message(f"{label} yükleniyor...", 4000)
         elif state == STATE_READY:
-            self.toast.show_message(f"{label} hazır", 1500)
+            where = f" ({message})" if message else ""
+            self.toast.show_message(f"{label} hazır{where}", 2500 if message else 1500)
         elif state == STATE_ERROR:
             self.toast.show_message(f"{label} başlatılamadı, ayrıntılar uygulama penceresinde", 4000)
 

@@ -65,9 +65,27 @@ Kısayollar `%LOCALAPPDATA%\gameeng2tr\settings.json` dosyasından değiştirile
 - Buna rağmen çeviri görünmüyorsa oyunun ekran modunu **Kenarlıksız / Pencereli Tam Ekran** yapın. Performans farkı pratikte yoktur.
 - Overlay **ekran yakalamadan hariç tutulur** (`WDA_EXCLUDEFROMCAPTURE`). Bu sayede çeviri İngilizce altyazının tam üstüne yazılsa bile OCR İngilizceyi okumaya devam eder. Bu özellik eski Windows sürümlerinde çalışmazsa çeviri otomatik olarak altyazının yukarısına taşınır.
 
+## AMD ekran kartları (ör. RX 6700 XT)
+
+- Ollama'nın AMD ROCm desteği Windows'ta yalnızca RX 7000 serisini kapsar. **RX 6000 serisi Vulkan ile çalışır.** Güncel Ollama sürümlerinde Vulkan varsayılan olarak açıktır, bu yüzden Ollama'yı **en son sürüme güncelleyin**.
+- Uygulama, Gemma yüklenince modelin nerede çalıştığını motor adının yanında gösterir:
+  - `hazır • GPU`: Model tamamen ekran kartında. İstenen durum bu.
+  - `hazır • CPU: GPU kullanılamadı`: Ollama ekran kartını görmüyor. Ollama'yı güncelleyin. Eski bir sürüm kullanmak zorundaysanız `OLLAMA_VULKAN=1` ortam değişkenini tanımlayıp Ollama'yı yeniden başlatın.
+  - `hazır • GPU %60 + CPU`: VRAM yetmedi, modelin bir kısmı işlemcide çalışıyor ve yavaşlar. Oyunun doku kalitesini bir kademe düşürün ya da CPU modunu kullanın.
+- `kurulum.bat` sonundaki denemede de aynı bilgi yazar, örneğin `[gemma] ... (650 ms, GPU)`.
+
+### Önerilen ayarlar: RX 6700 XT 12 GB, Ryzen 5 5600, 16 GB RAM
+
+| Durum | Öneri |
+|---|---|
+| Varsayılan | **Opus-MT, CPU**. Ekran kartına hiç dokunmaz. 6 çekirdeğin 4'ünü sadece çeviri anında, çok kısa süre kullanır. |
+| Daha iyi Türkçe | **TranslateGemma, GPU (Vulkan)**. ~3,5 GB VRAM kullanır. Oyun 1080p'de genelde 8 GB'ın altında kalır, 12 GB'a sığmalıdır. |
+| Oyunda takılma olursa | Gemma'da *"sadece CPU'da çalıştır"* seçeneğini açın (4 iş parçacığı, 2 çekirdek oyuna kalır). Çeviri 2–4 saniyeye çıkar ama FPS etkilenmez. |
+| RAM | Oyun + Gemma (CPU modunda ~3,5 GB) + uygulama 16 GB'a sığar. Arka planda tarayıcıyı kapatmanız iyi olur. |
+
 ## Performans ipuçları
 
-- Mortal Shell 2 gibi Unreal Engine 5 oyunları çok VRAM kullanır. GPU'nuz **8 GB veya daha az VRAM**'e sahipse TranslateGemma için *Ayarlar → "Gemma'yı sadece CPU'da çalıştır"* seçeneğini deneyin ya da Opus-MT kullanın.
+- Unreal Engine 5 oyunları çok VRAM kullanır. Ekran kartınızda **8 GB veya daha az VRAM** varsa TranslateGemma için *Ayarlar → "Gemma'yı sadece CPU'da çalıştır"* seçeneğini deneyin ya da Opus-MT kullanın.
 - Opus'a geçince Gemma varsayılan olarak VRAM'den çıkarılır. Geri geçiş birkaç saniye sürer. Hızlı geçiş istiyorsanız "Gemma'yı bellekte tut" seçeneğini açın.
 - OCR sırası: **OneOCR** (en hızlı), **Windows OCR**, **RapidOCR** (en yavaş, her yerde çalışır).
 - Windows OCR İngilizce dil paketi ister. Windows'unuz Türkçeyse yönetici PowerShell'de şunu çalıştırın:

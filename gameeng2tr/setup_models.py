@@ -93,7 +93,8 @@ def run_test(settings: Settings) -> None:
             translator.load()
             start = time.perf_counter()
             result = translator.translate(sample)
-            print(f"[{name}] {result}  ({(time.perf_counter() - start) * 1000:.0f} ms)")
+            where = f", {translator.note}" if translator.note else ""
+            print(f"[{name}] {result}  ({(time.perf_counter() - start) * 1000:.0f} ms{where})")
         except Exception as exc:
             print(f"[{name}] HATA: {exc}")
         finally:

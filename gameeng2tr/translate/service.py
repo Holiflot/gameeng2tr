@@ -199,7 +199,7 @@ class TranslationService:
             self._set_state(name, STATE_ERROR, str(exc))
             self._on_error(str(exc))
             return False
-        self._set_state(name, STATE_READY)
+        self._set_state(name, STATE_READY, getattr(translator, "note", ""))
         return True
 
     def _needs_work(self) -> bool:

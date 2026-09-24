@@ -62,12 +62,15 @@ class GemmaTranslator(Translator):
         cpu_only: bool = False,
         timeout: float = 30.0,
         keep_alive: str = "30m",
+        threads: int = 4,
     ):
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.cpu_only = cpu_only
         self.timeout = timeout
         self.keep_alive = keep_alive
+        self.threads = threads
+        self.note = ""
         self._loaded = False
         self._server_process: subprocess.Popen | None = None
 
@@ -111,10 +114,37 @@ class GemmaTranslator(Translator):
                 return
 
     def _options(self) -> dict:
-        options = {"temperature": 0.0, "top_k": 1, "num_predict": 256, "num_ctx": 1024}
+        # Altyazı + istem ~250 token; küçük bağlam VRAM'i oyuna bırakır.
+        options = {"temperature": 0.0, "top_k": 1, "num_predict": 256, "num_ctx": 512}
         if self.cpu_only:
             options["num_gpu"] = 0
+            options["num_thread"] = max(1, self.threads)
         return options
+
+    def gpu_share(self) -> float | None:
+        """Modelin VRAM'de duran oranı (0..1). Bilinmiyorsa None."""
+        try:
+            running = self._request("/api/ps", timeout=5).get("models", [])
+        except TranslatorError:
+            return None
+        for entry in running:
+            if entry.get("name") == self.model or entry.get("model") == self.model:
+                size = entry.get("size") or 0
+                return (entry.get("size_vram") or 0) / size if size else None
+        return None
+
+    def _placement_note(self) -> str:
+        share = self.gpu_share()
+        if share is None:
+            return ""
+        if share >= 0.99:
+            return "GPU"
+        if share <= 0.01:
+            if self.cpu_only:
+                return "CPU"
+            log.warning("TranslateGemma GPU'yu kullanamıyor, CPU'da çalışıyor")
+            return "CPU: GPU kullanılamadı (Ollama'yı güncelleyin, AMD için Vulkan gerekir)"
+        return f"GPU %{share * 100:.0f} + CPU (VRAM yetmedi, yavaş olabilir)"
 
     def _ensure_model_pulled(self) -> None:
         tags = self._request("/api/tags", timeout=5).get("models", [])
@@ -136,7 +166,8 @@ class GemmaTranslator(Translator):
         # Isınma: modeli belleğe yükler ki ilk altyazı beklemesin.
         self._chat("Hello.", timeout=max(self.timeout, 120))
         self._loaded = True
-        log.info("TranslateGemma hazır (%s, cpu_only=%s)", self.model, self.cpu_only)
+        self.note = self._placement_note()
+        log.info("TranslateGemma hazır (%s, cpu_only=%s, %s)", self.model, self.cpu_only, self.note or "?")
 
     def unload(self) -> None:
         if not self._loaded:
