@@ -7,7 +7,7 @@ import sys
 
 import numpy as np
 
-from .base import OcrEngine, OcrUnavailable
+from .base import OcrEngine, OcrLine, OcrUnavailable, union_box
 
 INSTALL_HINT = (
     "Windows'ta İngilizce OCR dil paketi yüklü değil. Yönetici PowerShell'de şunu çalıştırın:\n"
@@ -45,7 +45,7 @@ class WindowsOcrEngine(OcrEngine):
         self._DataWriter = DataWriter
         self._loop = asyncio.new_event_loop()
 
-    def recognize(self, img_bgr: np.ndarray) -> list[str]:
+    def recognize(self, img_bgr: np.ndarray) -> list[OcrLine]:
         h, w = img_bgr.shape[:2]
         rgba = np.empty((h, w, 4), dtype=np.uint8)
         rgba[..., 0] = img_bgr[..., 2]
@@ -56,7 +56,14 @@ class WindowsOcrEngine(OcrEngine):
         writer.write_bytes(rgba.tobytes())
         bitmap = self._SoftwareBitmap.create_copy_from_buffer(writer.detach_buffer(), self._RGBA8, w, h)
         result = self._loop.run_until_complete(_await(self._engine.recognize_async(bitmap)))
-        return [line.text for line in result.lines if line.text.strip()]
+        lines = []
+        for line in result.lines:
+            if not line.text.strip():
+                continue
+            rects = [w.bounding_rect for w in line.words]
+            box = union_box((r.x, r.y, r.x + r.width, r.y + r.height) for r in rects)
+            lines.append(OcrLine(line.text, box))
+        return lines
 
     def close(self) -> None:
         self._loop.close()

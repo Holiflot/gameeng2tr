@@ -7,7 +7,7 @@ import pytest
 
 from gameeng2tr.config import Settings
 from gameeng2tr.ocr import create_ocr
-from gameeng2tr.ocr.base import OcrEngine, group_lines
+from gameeng2tr.ocr.base import OcrEngine, OcrLine, group_lines
 from gameeng2tr.pipeline import CapturePipeline
 
 
@@ -31,15 +31,26 @@ def render_subtitle(lines, size=(160, 1300), seed=0):
 
 
 def test_group_lines_orders_boxes():
-    boxes = [(50, 80, 400, "world"), (0, 30, 10, "Hello"), (52, 78, 10, "big"), (2, 28, 300, "there")]
-    assert group_lines(boxes) == ["Hello there", "big world"]
+    words = [
+        ("world", (400, 50, 480, 80)),
+        ("Hello", (10, 0, 90, 30)),
+        ("big", (10, 52, 60, 78)),
+        ("there", (300, 2, 380, 28)),
+    ]
+    assert group_lines(words) == [
+        OcrLine("Hello there", (10, 0, 380, 30)),
+        OcrLine("big world", (10, 50, 480, 80)),
+    ]
 
 
 def test_rapidocr_reads_game_subtitle():
     pytest.importorskip("rapidocr_onnxruntime")
     engine, _ = create_ocr("rapidocr")
     lines = engine.recognize(render_subtitle(["Tiel: You shouldn't have come back here.", "The Shell remembers."]))
-    assert lines == ["Tiel: You shouldn't have come back here.", "The Shell remembers."]
+    assert [line.text for line in lines] == ["Tiel: You shouldn't have come back here.", "The Shell remembers."]
+    first, second = (line.box for line in lines)
+    assert first[3] <= second[1] + 5  # ilk satır üstte
+    assert 20 < first[3] - first[1] < 60
 
 
 def test_auto_ocr_falls_back_on_linux():
@@ -59,7 +70,7 @@ class ScriptedOcr(OcrEngine):
 
     def recognize(self, img):
         self.calls += 1
-        return self.script(img)
+        return [OcrLine(text, (10, 10 + 30 * i, 300, 35 + 30 * i)) for i, text in enumerate(self.script(img))]
 
 
 class FrameSource:

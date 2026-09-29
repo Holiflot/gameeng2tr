@@ -37,6 +37,12 @@ from ..ocr import LABELS as OCR_LABELS
 from ..translate import LABELS as ENGINE_LABELS
 from ..translate.service import STATE_ERROR, TranslationResult
 
+STYLE_LABELS = {
+    "blur": "Altyazıyı bulanıklaştır, Türkçeyi tam üstüne yaz (önerilen)",
+    "box": "Koyu kutu içinde göster",
+    "text": "Sadece yazı (arka plansız)",
+}
+
 POSITION_LABELS = {
     "over": "İngilizce altyazının üstüne yaz (gizler)",
     "above": "Altyazının yukarısında göster",
@@ -212,6 +218,13 @@ class MainWindow(QMainWindow):
         # Görünüm
         view_box = QGroupBox("Görünüm")
         form = QFormLayout(view_box)
+        self.style_combo = QComboBox()
+        for key, label in STYLE_LABELS.items():
+            self.style_combo.addItem(label, key)
+        self.style_combo.setCurrentIndex(list(STYLE_LABELS).index(s.overlay_style))
+        self.style_combo.currentIndexChanged.connect(self._on_style_changed)
+        form.addRow("Görünüm", self.style_combo)
+
         self.position_combo = QComboBox()
         for key, label in POSITION_LABELS.items():
             self.position_combo.addItem(label, key)
@@ -219,17 +232,41 @@ class MainWindow(QMainWindow):
         self.position_combo.currentIndexChanged.connect(lambda: self._set("overlay_position", self.position_combo.currentData(), refresh=True))
         form.addRow("Konum", self.position_combo)
 
-        font_size = QSpinBox()
-        font_size.setRange(12, 96)
-        font_size.setValue(s.font_size)
-        font_size.valueChanged.connect(lambda v: self._set("font_size", v, refresh=True))
-        form.addRow("Yazı boyutu (px)", font_size)
+        self.blur_slider = QSlider(Qt.Orientation.Horizontal)
+        self.blur_slider.setRange(0, 20)
+        self.blur_slider.setValue(int(s.blur_strength))
+        self.blur_slider.valueChanged.connect(lambda v: self._set("blur_strength", float(v)))
+        form.addRow("Bulanıklık", self.blur_slider)
 
-        opacity = QSlider(Qt.Orientation.Horizontal)
-        opacity.setRange(0, 100)
-        opacity.setValue(int(s.background_opacity * 100))
-        opacity.valueChanged.connect(lambda v: self._set("background_opacity", v / 100, refresh=True))
-        form.addRow("Arka plan koyuluğu", opacity)
+        self.font_auto = QCheckBox("Yazı boyutunu oyundaki altyazıya eşitle")
+        self.font_auto.setChecked(s.font_auto)
+        self.font_auto.toggled.connect(self._on_font_auto_toggled)
+        form.addRow(self.font_auto)
+
+        self.font_scale = QSpinBox()
+        self.font_scale.setRange(50, 200)
+        self.font_scale.setSuffix(" %")
+        self.font_scale.setValue(int(round(s.font_scale * 100)))
+        self.font_scale.valueChanged.connect(lambda v: self._set("font_scale", v / 100, refresh=True))
+        form.addRow("Boyut ayarı", self.font_scale)
+
+        self.font_size = QSpinBox()
+        self.font_size.setRange(12, 96)
+        self.font_size.setValue(s.font_size)
+        self.font_size.valueChanged.connect(lambda v: self._set("font_size", v, refresh=True))
+        form.addRow("Yazı boyutu (px)", self.font_size)
+
+        bold = QCheckBox("Kalın yazı")
+        bold.setChecked(s.font_bold)
+        bold.toggled.connect(lambda v: self._set("font_bold", v, refresh=True))
+        form.addRow(bold)
+
+        self.opacity = QSlider(Qt.Orientation.Horizontal)
+        self.opacity.setRange(0, 100)
+        self.opacity.setValue(int(s.background_opacity * 100))
+        self.opacity.valueChanged.connect(lambda v: self._set("background_opacity", v / 100, refresh=True))
+        form.addRow("Kutu koyuluğu", self.opacity)
+        self._sync_view_controls()
 
         badge = QCheckBox("Çevirinin köşesinde motor adını göster")
         badge.setChecked(s.show_engine_badge)
@@ -350,6 +387,22 @@ class MainWindow(QMainWindow):
             self.c.overlay.refresh()
         if reset:
             self.c.pipeline.reset()
+
+    def _on_style_changed(self) -> None:
+        self._set("overlay_style", self.style_combo.currentData(), refresh=True)
+        self._sync_view_controls()
+
+    def _on_font_auto_toggled(self, value: bool) -> None:
+        self._set("font_auto", value, refresh=True)
+        self._sync_view_controls()
+
+    def _sync_view_controls(self) -> None:
+        style = self.s.overlay_style
+        self.position_combo.setEnabled(style != "blur")
+        self.blur_slider.setEnabled(style == "blur")
+        self.opacity.setEnabled(style == "box")
+        self.font_scale.setEnabled(self.s.font_auto)
+        self.font_size.setEnabled(not self.s.font_auto)
 
     def _set_engine_opt(self, key: str, value, engine: str) -> None:
         if getattr(self.s, key) == value:

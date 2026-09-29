@@ -43,6 +43,7 @@ class Controller(QObject):
     engine_changed = Signal(str)
     overlay_hidden_changed = Signal(bool)
     pipeline_stopped = Signal()
+    background = Signal(object)
 
     def __init__(self, settings: Settings):
         super().__init__()
@@ -74,6 +75,7 @@ class Controller(QObject):
             on_metrics=self.metrics.emit,
             on_ocr_ready=self.ocr_ready.emit,
             on_stopped=self.pipeline_stopped.emit,
+            on_background=self.background.emit,
         )
         self.hotkeys = HotkeyManager(on_error=self.error.emit)
 
@@ -82,6 +84,7 @@ class Controller(QObject):
         self.engine_state.connect(self._on_engine_state)
         self.hotkey.connect(self._on_hotkey)
         self.pipeline_stopped.connect(self._on_pipeline_stopped)
+        self.background.connect(self.overlay.set_background)
 
         self._save_timer = QTimer(self)
         self._save_timer.setSingleShot(True)
@@ -200,6 +203,7 @@ class Controller(QObject):
     def _on_subtitle_event(self, event: SubtitleEvent) -> None:
         if event.kind == "show":
             self._seq += 1
+            self.overlay.set_source_layout(event.layout)
             self.service.submit(self._seq, event.text)
         elif event.kind == "clear":
             self.service.cancel_live(self._seq)

@@ -19,6 +19,11 @@ OCR_BACKENDS = ("auto", "oneocr", "windows", "rapidocr")
 
 OVERLAY_POSITIONS = ("over", "above", "below")
 
+# blur: İngilizce altyazıyı yerinde silip bulanıklaştırır, Türkçeyi tam üstüne yazar
+# box: koyu yarı saydam kutu
+# text: sadece dış çizgili yazı
+OVERLAY_STYLES = ("blur", "box", "text")
+
 
 @dataclass
 class Settings:
@@ -52,7 +57,12 @@ class Settings:
     split_speaker: bool = True
 
     # Overlay
+    overlay_style: str = "blur"
     overlay_position: str = "over"
+    blur_strength: float = 8.0
+    blur_fps: float = 20.0  # bulanık arka planın güncellenme sıklığı
+    font_auto: bool = True  # yazı boyutunu oyundaki altyazıya eşitle
+    font_scale: float = 1.0
     font_family: str = "Segoe UI"
     font_size: int = 28
     font_bold: bool = True
@@ -108,6 +118,11 @@ class Settings:
             self.ocr_backend = "auto"
         if self.overlay_position not in OVERLAY_POSITIONS:
             self.overlay_position = "over"
+        if self.overlay_style not in OVERLAY_STYLES:
+            self.overlay_style = "blur"
+        self.blur_strength = min(max(self.blur_strength, 0.0), 30.0)
+        self.blur_fps = min(max(self.blur_fps, 5.0), 60.0)
+        self.font_scale = min(max(self.font_scale, 0.5), 2.0)
         self.region = normalize_region(self.region)
         self.capture_fps = min(max(self.capture_fps, 1.0), 30.0)
         self.stable_frames = max(1, self.stable_frames)

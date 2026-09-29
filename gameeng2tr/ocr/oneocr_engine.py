@@ -11,7 +11,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .base import OcrEngine, OcrUnavailable
+from .base import OcrEngine, OcrLine, OcrUnavailable
 from ..preprocess import ensure_min_size
 
 ONEOCR_DIR = Path.home() / ".config" / "oneocr"
@@ -41,9 +41,21 @@ class OneOcrEngine(OcrEngine):
         except Exception as exc:  # DLL yükleme hataları
             raise OcrUnavailable(f"OneOCR başlatılamadı: {exc}") from exc
 
-    def recognize(self, img_bgr: np.ndarray) -> list[str]:
+    def recognize(self, img_bgr: np.ndarray) -> list[OcrLine]:
         img = np.ascontiguousarray(ensure_min_size(img_bgr))
+        scale = img_bgr.shape[0] / img.shape[0]  # küçük görüntü büyütüldüyse kutuları geri ölçekle
         result = self._engine.recognize_cv2(img)
         if result.get("error"):
             return []
-        return [line["text"] for line in result.get("lines", []) if line.get("text")]
+        lines = []
+        for line in result.get("lines", []):
+            if not line.get("text"):
+                continue
+            rect = line.get("bounding_rect")
+            box = None
+            if rect:
+                xs = [rect[f"x{i}"] for i in range(1, 5)]
+                ys = [rect[f"y{i}"] for i in range(1, 5)]
+                box = (min(xs) * scale, min(ys) * scale, max(xs) * scale, max(ys) * scale)
+            lines.append(OcrLine(line["text"], box))
+        return lines

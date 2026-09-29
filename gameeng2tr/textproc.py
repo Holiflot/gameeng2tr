@@ -78,9 +78,20 @@ def similarity(a: str, b: str) -> float:
 
 
 @dataclass
+class SubtitleLayout:
+    """İngilizce altyazının yakalanan bölgedeki konumu (bölge pikseli)."""
+
+    box: tuple[float, float, float, float]  # tüm satırları kapsayan kutu
+    line_height: float  # yazının mürekkep yüksekliği (büyük harf üstünden kuyruk altına)
+    line_count: int
+    frame_size: tuple[int, int]  # (genişlik, yükseklik)
+
+
+@dataclass
 class SubtitleEvent:
     kind: str  # "show" veya "clear"
     text: str = ""
+    layout: SubtitleLayout | None = None
 
 
 class SubtitleTracker:

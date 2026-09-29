@@ -20,6 +20,23 @@ Ekran yakalama (DXGI, sadece altyazı bölgesi, 8 kare/sn)
    → Overlay (en üstte, tıklanamaz, ekran yakalamadan hariç)
 ```
 
+## Görünüm: altyazıyı yerinde bulanıklaştırma
+
+Varsayılan görünümde siyah kutu kullanılmaz:
+
+1. OCR, İngilizce altyazının her satırının ekrandaki konumunu bulur. Yazı boyutu doğrudan görüntüden ölçülür.
+2. Altyazı ekranda kaldığı sürece bölge saniyede 20 kez yakalanır. İngilizce harfler, dış çizgileri ve gölgeleriyle birlikte maskelenir. Maskelenen alan çevresindeki oyun görüntüsüyle doldurulup hafifçe bulanıklaştırılır. Kenarları yumuşak geçişle sahneye karışır.
+3. Türkçe çeviri aynı yere, aynı yazı boyutuyla, oyun altyazısı gibi ince dış çizgi ve gölgeyle yazılır.
+
+Katman ekran yakalamadan hariç tutulduğu için uygulama alttaki İngilizceyi okumaya devam eder. Böylece bulanık arka plan kamera hareket ettikçe güncellenir.
+
+*Ayarlar → Görünüm* bölümünden şunlar değiştirilebilir:
+- **Bulanıklık:** 0 seçilirse yazı silinir ama arka plan keskin kalır.
+- **Boyut ayarı:** Otomatik yazı boyutunu yüzde olarak büyütür veya küçültür.
+- **Görünüm:** Eski *koyu kutu* ya da *sadece yazı* görünümüne dönülebilir.
+
+Arka plan her karede yeniden hesaplanır (~5–10 ms, işlemcide), ama oyun görüntüsünün ~50–100 ms gerisinden gelir. Hızlı kamera dönüşlerinde bulanık alan sahneyi kısa bir süre geriden takip edebilir. Alan bulanık olduğu için bu genelde fark edilmez.
+
 ## Kurulum (Windows 10/11)
 
 1. **Python 3.11 veya 3.12** kurun: <https://www.python.org/downloads/> ("Add python.exe to PATH" kutusunu işaretleyin).
@@ -63,7 +80,7 @@ Kısayollar `%LOCALAPPDATA%\gameeng2tr\settings.json` dosyasından değiştirile
 - **Overlay:** Unreal Engine 5 gibi DirectX 12 oyunlarında "Tam Ekran" modu aslında Windows'un flip-model sunumudur. Bu modda her zaman üstte duran pencereler görünür. Overlay her saniye kendini tekrar en üste taşır ve odak çalmaz, bu yüzden oyun simge durumuna küçülmez.
 - DirectX 11 oyunlarında Windows 10/11'in **tam ekran iyileştirmeleri** açık kalmalıdır. `.exe` → Özellikler → Uyumluluk → "Tam ekran iyileştirmelerini devre dışı bırak" **işaretli olmamalıdır**.
 - Buna rağmen çeviri görünmüyorsa oyunun ekran modunu **Kenarlıksız / Pencereli Tam Ekran** yapın. Performans farkı pratikte yoktur.
-- Overlay **ekran yakalamadan hariç tutulur** (`WDA_EXCLUDEFROMCAPTURE`). Bu sayede çeviri İngilizce altyazının tam üstüne yazılsa bile OCR İngilizceyi okumaya devam eder. Bu özellik eski Windows sürümlerinde çalışmazsa çeviri otomatik olarak altyazının yukarısına taşınır.
+- Overlay **ekran yakalamadan hariç tutulur** (`WDA_EXCLUDEFROMCAPTURE`). Bu sayede çeviri İngilizce altyazının tam üstüne yazılsa bile OCR İngilizceyi okumaya devam eder. Bu özellik eski Windows sürümlerinde çalışmazsa bulanıklaştırma kullanılamaz; çeviri otomatik olarak koyu kutu içinde altyazının yukarısında gösterilir.
 
 ## AMD ekran kartları (ör. RX 6700 XT)
 

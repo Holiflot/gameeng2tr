@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from .base import OcrEngine, OcrUnavailable, group_lines
+from .base import OcrEngine, OcrLine, OcrUnavailable, group_lines, points_box
 
 
 class RapidOcrEngine(OcrEngine):
@@ -19,15 +19,13 @@ class RapidOcrEngine(OcrEngine):
         self._engine = RapidOCR()
         self._min_score = min_score
 
-    def recognize(self, img_bgr: np.ndarray) -> list[str]:
+    def recognize(self, img_bgr: np.ndarray) -> list[OcrLine]:
         result, _ = self._engine(img_bgr, use_cls=False)
         if not result:
             return []
-        boxes = []
-        for points, text, score in result:
-            if float(score) < self._min_score or not text.strip():
-                continue
-            ys = [p[1] for p in points]
-            xs = [p[0] for p in points]
-            boxes.append((min(ys), max(ys), min(xs), text.strip()))
-        return group_lines(boxes)
+        words = [
+            (text.strip(), points_box(points))
+            for points, text, score in result
+            if float(score) >= self._min_score and text.strip()
+        ]
+        return group_lines(words)

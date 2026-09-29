@@ -5,16 +5,44 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from dataclasses import dataclass
 from typing import Callable
 
+import numpy as np
+
 from .config import Settings
-from .ocr import OcrEngine, OcrUnavailable, create_ocr
-from .preprocess import high_contrast, signature_changed, text_signature
-from .textproc import SubtitleEvent, SubtitleTracker, clean_ocr_lines, looks_like_text
+from .ocr import OcrEngine, OcrLine, OcrUnavailable, create_ocr
+from .ocr.base import union_box
+from .preprocess import erase_text_patch, high_contrast, ink_height, signature_changed, text_signature
+from .textproc import SubtitleEvent, SubtitleLayout, SubtitleTracker, clean_ocr_lines, looks_like_text
 
 log = logging.getLogger(__name__)
 
 FORCE_OCR_EVERY = 1.5  # görüntü değişmese de en az bu sıklıkla OCR yap (sn)
+
+
+@dataclass
+class BackgroundPatch:
+    """İngilizce yazısı silinmiş, bulanıklaştırılmış arka plan parçası (BGRA, bölge pikseli)."""
+
+    image: np.ndarray
+    x: int
+    y: int
+    frame_size: tuple[int, int]
+
+
+def measure_layout(frame: np.ndarray, lines: list[OcrLine]) -> SubtitleLayout | None:
+    boxes = [line.box for line in lines if line.box is not None]
+    box = union_box(boxes)
+    if box is None:
+        return None
+    heights = [h for h in (ink_height(frame, b) for b in boxes) if h]
+    if heights:
+        line_height = float(np.median(heights))
+    else:  # ölçülemezse OCR kutusundan tahmin et
+        line_height = float(np.median([b[3] - b[1] for b in boxes])) * 0.8
+    h, w = frame.shape[:2]
+    return SubtitleLayout(box, line_height, len(boxes), (w, h))
 
 
 class CapturePipeline:
@@ -27,6 +55,7 @@ class CapturePipeline:
         on_metrics: Callable[[dict], None] = lambda m: None,
         on_ocr_ready: Callable[[str], None] = lambda label: None,
         on_stopped: Callable[[], None] = lambda: None,
+        on_background: Callable[[BackgroundPatch], None] = lambda patch: None,
     ):
         self.settings = settings
         self._get_capture = get_capture
@@ -35,6 +64,7 @@ class CapturePipeline:
         self._on_metrics = on_metrics
         self._on_ocr_ready = on_ocr_ready
         self._on_stopped = on_stopped
+        self._on_background = on_background
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
         self._ocr: OcrEngine | None = None
@@ -99,19 +129,22 @@ class CapturePipeline:
         tracker = SubtitleTracker(settings.stable_frames, settings.clear_after)
         prev_sig = None
         last_text = ""
+        last_layout: SubtitleLayout | None = None
         last_ocr_at = 0.0
         ocr_ms = 0.0
 
         ocr = self._ensure_ocr()
         self._on_status("Çalışıyor")
         while not self._stop.is_set():
-            period = 1.0 / settings.capture_fps
+            blurring = settings.overlay_style == "blur" and bool(tracker.shown) and last_layout is not None
+            fps = max(settings.capture_fps, settings.blur_fps) if blurring else settings.capture_fps
+            period = 1.0 / fps
             tick = time.perf_counter()
 
             if self._reset_requested.is_set():
                 self._reset_requested.clear()
                 tracker = SubtitleTracker(settings.stable_frames, settings.clear_after)
-                prev_sig, last_text = None, ""
+                prev_sig, last_text, last_layout = None, "", None
                 ocr = self._ensure_ocr()
 
             capture = self._get_capture()
@@ -130,13 +163,30 @@ class CapturePipeline:
                         lines = []
                     ocr_ms = (time.perf_counter() - t0) * 1000
                     last_ocr_at = now
-                    text = clean_ocr_lines(lines)
+                    text = clean_ocr_lines([line.text for line in lines])
                     last_text = text if looks_like_text(text, settings.min_text_len) else ""
+                    if last_text:
+                        last_layout = measure_layout(frame, lines) or last_layout
                     self._on_metrics({"ocr_ms": ocr_ms, "ocr_text": last_text})
 
                 event = tracker.update(last_text, time.perf_counter())
                 if event is not None:
+                    if event.kind == "show":
+                        event.layout = last_layout
                     self._on_event(event)
+
+                if settings.overlay_style == "blur" and tracker.shown and last_layout is not None:
+                    self._emit_background(frame, last_layout)
 
             elapsed = time.perf_counter() - tick
             self._stop.wait(max(0.0, period - elapsed))
+
+    def _emit_background(self, frame: np.ndarray, layout: SubtitleLayout) -> None:
+        if (frame.shape[1], frame.shape[0]) != layout.frame_size:
+            return  # bölge değişti, yeni OCR bekleniyor
+        try:
+            image, x, y = erase_text_patch(frame, layout.box, layout.line_height, self.settings.blur_strength)
+        except Exception:
+            log.exception("Arka plan bulanıklaştırılamadı")
+            return
+        self._on_background(BackgroundPatch(image, x, y, layout.frame_size))

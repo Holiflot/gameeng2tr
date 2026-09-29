@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from .base import OcrEngine, OcrUnavailable
+from .base import OcrEngine, OcrLine, OcrUnavailable
 
 log = logging.getLogger(__name__)
 
@@ -52,4 +52,4 @@ def create_ocr(name: str = "auto") -> tuple[OcrEngine, list[str]]:
     raise OcrUnavailable("Hiçbir OCR motoru başlatılamadı:\n" + "\n".join(errors))
 
 
-__all__ = ["OcrEngine", "OcrUnavailable", "create_ocr", "LABELS"]
+__all__ = ["OcrEngine", "OcrLine", "OcrUnavailable", "create_ocr", "LABELS"]
